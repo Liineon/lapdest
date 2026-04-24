@@ -1,0 +1,19 @@
+# Core DL (GPU wheel source specified during install command)
+torch
+torchvision
+
+# Project dependencies
+numpy
+matplotlib
+scikit-learn
+tqdm
+Pillow
+tifffile
+imagecodecs
+albumentations
+opencv-python
+# Grad-CAM（PyPI 包名为 grad-cam，导入仍为 pytorch_grad_cam）
+grad-cam
+PyYAML
+pandas
+openpyxl

@@ -1,0 +1,97 @@
+# 实验总配置：训练与评估脚本均从此文件读取参数
+
+random_seed: 42
+
+paths:
+  # 图像根目录（按标签子文件夹存放）；清单中每行路径相对此目录
+  dataset_root: data/images
+  split_manifest_dir: data
+  best_model: model.pth
+  training_curves: training_performance_curves.png
+  # 在 outputs/train/YYYYMMDD### 下归档 train/val/test.txt、model.pth、曲线、split_meta 等；设为 "" 或 false 关闭
+  train_outputs_root: outputs/train
+  # 每次运行 evaluate.py 在 outputs/evaluate/YYYYMMDD### 下归档混淆矩阵、报告、eval_meta 等；设为 "" 或 false 关闭
+  eval_outputs_root: outputs/evaluate
+
+data:
+  mask_dir: data/masks
+  mask_augment_train: true
+  num_workers: 0
+  # 训练/验证/测试划分比例（测试集 = 1 - train - val）
+  split_train: 0.7
+  split_val: 0.15
+  input_size: 384
+  augment:
+    # 几何增强（图像与掩码同步）
+    horizontal_flip_p: 0.5
+    vertical_flip_p: 0.5
+    rotation_degrees: 15
+    # 颜色增强（仅图像）
+    color_jitter_p: 0.5
+    brightness: 0.2
+    contrast: 0.2
+    saturation: 0.2
+    hue: 0.05
+    # 高斯噪声（仅图像）
+    gauss_noise_p: 0.4
+    gauss_noise_var_min: 10.0
+    gauss_noise_var_max: 50.0
+    # 无掩码分支（torch tensor）高斯噪声强度
+    tensor_noise_p: 0.4
+    tensor_noise_std: 0.03
+
+image:
+  norm_mean: [0.485, 0.456, 0.406]
+  norm_std: [0.229, 0.224, 0.225]
+
+model:
+  # 对比实验一键切换 baseline（与主模型相同输出接口）：
+  #   convnext_gi      — 完整方法，子模块由下方 modules 控制
+  #   convnext_plain   — ConvNeXt-Tiny + CORAL（无注意力/细节/掩码池化）
+  #   resnet18_coral   — ResNet-18 + CORAL
+  name: convnext_gi
+  num_classes: 3
+  freeze_backbone: false
+
+# 消融实验：仅对 model.name == convnext_gi 生效；baseline 名称会忽略此块
+modules:
+  gi_attention: true
+  detail_enhancement: true
+  mask_overlay_pooling: true
+  mask_feature_gating: true
+  mask_gate_beta: 0.0
+  binary_auxiliary_head: true
+
+training:
+  # 训练使用的 GPU 序号（与 torch.device(f"cuda:{idx}") 一致）
+  cuda_device: 0
+  epochs: 100
+  optimizer:
+    lr: 1e-4
+    weight_decay: 5.0e-4
+  # 总损失 = coral_loss + binary_weight * binary_loss
+  binary_loss_weight: 0.2
+  # batch_size.fixed 非空时强制使用该值；为空则按 GPU 自动
+  batch_size:
+    fixed: null
+    auto_on_cuda_alt: 8
+    auto_on_cuda_default: 16
+
+scheduler:
+  mode: max
+  factor: 0.5
+  patience: 7
+  min_lr: 1.0e-6
+
+early_stopping:
+  patience: 13
+
+evaluate:
+  batch_size: 16
+  confusion_matrix_png: confusion_matrix.png
+  # 是否在归档目录下为验证集每张图生成 Grad-CAM 热力图（子目录 heatmaps/）
+  save_gradcam_heatmaps: true
+  # 热力图最多生成张数，0 表示验证集全部
+  gradcam_max_images: 0
+  # 非空时优先使用该清单作为验证集；默认否则读取 paths.split_manifest_dir 下的 val.txt（常为 data/val.txt）
+  val_manifest: null
